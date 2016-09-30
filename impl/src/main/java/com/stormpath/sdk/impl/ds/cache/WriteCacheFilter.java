@@ -20,6 +20,7 @@ import com.stormpath.sdk.account.EmailVerificationToken;
 import com.stormpath.sdk.account.PasswordResetToken;
 import com.stormpath.sdk.api.ApiKey;
 import com.stormpath.sdk.api.ApiKeyList;
+import com.stormpath.sdk.application.WebConfiguration;
 import com.stormpath.sdk.cache.Cache;
 import com.stormpath.sdk.directory.CustomData;
 import com.stormpath.sdk.impl.account.DefaultAccount;
@@ -50,11 +51,7 @@ import com.stormpath.sdk.resource.CollectionResource;
 import com.stormpath.sdk.resource.Resource;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.stormpath.sdk.impl.api.ApiKeyParameter.ID;
 import static com.stormpath.sdk.impl.resource.AbstractResource.HREF_PROP_NAME;
@@ -64,11 +61,26 @@ public class WriteCacheFilter extends AbstractCacheFilter {
     private final ReferenceFactory referenceFactory;
     private final CacheMapInitializer cacheMapInitializer;
 
+    private final Set<String> webConfigurationMaps;
+
     public WriteCacheFilter(CacheResolver cacheResolver, boolean collectionCachingEnabled, ReferenceFactory referenceFactory) {
         super(cacheResolver, collectionCachingEnabled);
         Assert.notNull(referenceFactory, "referenceFactory cannot be null.");
         this.referenceFactory = referenceFactory;
         this.cacheMapInitializer = new DefaultCacheMapInitializer();
+        this.webConfigurationMaps = new HashSet<>();
+        this.webConfigurationMaps.add("oauth2");
+        this.webConfigurationMaps.add("accessTokenCookie");
+        this.webConfigurationMaps.add("refreshTokenCookie");
+        this.webConfigurationMaps.add("register");
+        this.webConfigurationMaps.add("verifyEmail");
+        this.webConfigurationMaps.add("login");
+        this.webConfigurationMaps.add("logout");
+        this.webConfigurationMaps.add("forgotPassword");
+        this.webConfigurationMaps.add("changePassword");
+        this.webConfigurationMaps.add("idSite");
+        this.webConfigurationMaps.add("callback");
+        this.webConfigurationMaps.add("me");
     }
 
     @Override
@@ -220,15 +232,17 @@ public class WriteCacheFilter extends AbstractCacheFilter {
 
             boolean isTokenDataMap = (AccessToken.class.isAssignableFrom(clazz) || RefreshToken.class.isAssignableFrom(clazz)) && name.equals("expandedJwt");
 
+            boolean isWebConfigurationMap = WebConfiguration.class.isAssignableFrom(clazz) && webConfigurationMaps.contains(name);
+
             boolean isApiEncryptionMetadata = ApiKey.class.isAssignableFrom(clazz) && name.equals(ApiKeyParameter.ENCRYPTION_METADATA.getName());
 
             // Since defaultModel and Grant Authentication tokens are maps, the DataStore thinks they are Resources. This causes the code to crash later on as Resources
             // do need to have an href property
-            if (isDefaultModelMap || isTokenDataMap) {
+            if (isDefaultModelMap || isTokenDataMap || isWebConfigurationMap) {
                 value = new LinkedHashMap<String, Object>((Map) value);
             }
 
-            if (value instanceof Map && !isDefaultModelMap && !isTokenDataMap && !isApiEncryptionMetadata) {
+            if (value instanceof Map && !isDefaultModelMap && !isTokenDataMap && !isWebConfigurationMap && !isApiEncryptionMetadata) {
                 //the value is a resource reference
                 Map<String, ?> nested = (Map<String, ?>) value;
 
